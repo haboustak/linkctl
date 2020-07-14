@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-    "net"
+	"net"
 
 	"github.com/haboustak/linkctl/internal/networkd"
 )
@@ -11,7 +11,7 @@ import (
 var cmdRename = &Command{
 	Name: "rename",
 	Run:  rename,
-    Usage: `Usage:
+	Usage: `Usage:
     linkctl [-h] rename LINK [NEWNAME]
 
 Enable a netdev link
@@ -35,9 +35,9 @@ func setName(netdev *networkd.NetDev, name string) error {
 		return fmt.Errorf("A link with the name %s already exists", name)
 	}
 
-    if _, err := net.InterfaceByName(name); err == nil {
+	if _, err := net.InterfaceByName(name); err == nil {
 		return fmt.Errorf("A link with the name %s already exists", name)
-    }
+	}
 
 	return netdev.Rename(name)
 }

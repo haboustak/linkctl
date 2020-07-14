@@ -3,14 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 )
+
+var IsATTY bool
 
 type Command struct {
 	Name  string
 	Run   func(cmd *Command) error
 	Flags flag.FlagSet
-    Usage string
+	Usage string
 }
 
 var commands = []*Command{
@@ -20,35 +23,41 @@ var commands = []*Command{
 	cmdRename,
 }
 
-func main() {
-    var showHelp bool
+func init() {
+	// HACK unix (Linux?) only
+	_, err := unix.IoctlGetTermios(int(os.Stdout.Fd()), unix.TCGETS)
+	IsATTY = err == nil
+}
 
-    flag.BoolVar(&showHelp, "h", false, "show help")
+func main() {
+	var showHelp bool
+
+	flag.BoolVar(&showHelp, "h", false, "show help")
 	flag.Parse()
 	args := flag.Args()
 
 	if showHelp && len(args) == 0 {
-        printUsage(defaultUsage)
+		printUsage(defaultUsage)
 	}
 
-    command := "list"
-    if len(args) > 0 {
-        command = args[0]
-        args = args[1:]
-    }
+	command := "list"
+	if len(args) > 0 {
+		command = args[0]
+		args = args[1:]
+	}
 
 	for _, cmd := range commands {
 		if cmd.Name != command {
 			continue
 		}
 
-        if showHelp {
-            printUsage(cmd.Usage)
-        }
+		if showHelp {
+			printUsage(cmd.Usage)
+		}
 
-        cmd.Flags.Usage = func() {
-            printUsage(cmd.Usage)
-        }
+		cmd.Flags.Usage = func() {
+			printUsage(cmd.Usage)
+		}
 		cmd.Flags.Parse(args)
 		err := cmd.Run(cmd)
 		if err != nil {
@@ -68,7 +77,8 @@ Commands:
     disable     disable a netdev link
     rename      rename a netdev link
 `
+
 func printUsage(usage string) {
-    fmt.Fprintf(os.Stderr, usage)
-    os.Exit(1)
+	fmt.Fprintf(os.Stderr, usage)
+	os.Exit(1)
 }

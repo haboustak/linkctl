@@ -9,7 +9,7 @@ import (
 var cmdDisable = &Command{
 	Name: "disable",
 	Run:  disable,
-    Usage: `Usage:
+	Usage: `Usage:
     linkctl [-h] disable LINK
 
 Disable a netdev link

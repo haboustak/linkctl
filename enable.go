@@ -9,7 +9,7 @@ import (
 var cmdEnable = &Command{
 	Name: "enable",
 	Run:  enable,
-    Usage: `Usage:
+	Usage: `Usage:
     linkctl [-h] enable LINK
 
 Enable a netdev link
