@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 
@@ -9,25 +10,28 @@ import (
 )
 
 var (
-	showAll bool
+	showAll   bool
+	quietMode bool
 )
 
 var cmdList = &Command{
 	Name: "list",
 	Run:  list,
 	Usage: `Usage:
-    linkctl [-h] list [-a]
+    linkctl [-h] list [-a] [-q]
 
 Show systemd-networkd netdev links
 
 Options:
     -a      show all links
     -h      show this help
+    -q      only print link names
 `,
 }
 
 func init() {
 	cmdList.Flags.BoolVar(&showAll, "a", false, "show all links")
+	cmdList.Flags.BoolVar(&quietMode, "q", false, "only print link names")
 }
 
 func ansiColorStatus(status networkd.LinkStatus) string {
@@ -44,6 +48,7 @@ func ansiColorStatus(status networkd.LinkStatus) string {
 		return string(status)
 	}
 }
+
 func list(self *Command) error {
 	links := networkd.ListNetDev(showAll)
 	if links == nil {
@@ -51,12 +56,23 @@ func list(self *Command) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 15, 3, 1, ' ', tabwriter.TabIndent)
-	fmt.Fprintln(w, "NAME\tTYPE\tSTATUS")
+	if !quietMode {
+		fmt.Fprintln(w, "NAME\tTYPE\tSTATUS")
+	}
+
 	for _, link := range links {
+		printLink(w, link)
+	}
+
+	w.Flush()
+	return nil
+}
+func printLink(w io.Writer, link *networkd.NetDev) {
+	if quietMode {
+		fmt.Fprintln(w, link.Name)
+	} else {
 		fmt.Fprintf(w, "%s\t%s\t%s\n",
 			link.Name, link.Kind,
 			ansiColorStatus(link.Status))
 	}
-	w.Flush()
-	return nil
 }
