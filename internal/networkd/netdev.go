@@ -49,14 +49,17 @@ func (self *NetDev) Enable() error {
             self.Name)
     }
 
-    self.ParentDropin.File.NewSection("Network")
-    self.ParentDropin.File.Section("Network").NewKey("VLAN", self.Name)
-    self.ParentDropin.Save()
-
     linkedName := fmt.Sprintf(
         "/etc/systemd/network/%s",
         self.Unit.Name)
-    return os.Symlink(self.Unit.Path, linkedName)
+    if err := os.Symlink(self.Unit.Path, linkedName); err != nil {
+        return fmt.Errorf("Failed to create unit symlink %s", linkedName)
+    }
+
+    self.Status = LinkEnabled
+    updateParentNetwork(self)
+
+    return nil
 }
 
 func (self *NetDev) Disable() error {
@@ -67,24 +70,20 @@ func (self *NetDev) Disable() error {
         return fmt.Errorf("The link %s is user-defined and cannot be disabled", self.Name)
     }
 
-    if self.ParentDropin != nil {
-        self.ParentDropin.Delete()
+    if self.ParentDropin == nil {
+        return fmt.Errorf(
+            "The parent network for %s could not be determined",
+            self.Name)
     }
 
     err := os.Remove(self.Unit.Path)
     if err != nil {
         return err
     }
+    self.Status = LinkDisabled
 
-    cmd := exec.Command("ip", "link", "show", self.Name)
-    if err := cmd.Run(); err != nil {
-        return nil
-    }
-
-    cmd = exec.Command("ip", "link", "del", self.Name)
-    if err := cmd.Run(); err != nil {
-        return fmt.Errorf("unable to delete link %s", self.Name)
-    }
+    removeLink(self.Name)
+    updateParentNetwork(self)
 
     return nil
 }
@@ -103,8 +102,16 @@ func (self *NetDev) Rename(newName string) error {
 
     self.RenameUnit.File.NewSection("NetDev")
     self.RenameUnit.File.Section("NetDev").NewKey("Name", newName)
+    if err := self.RenameUnit.Save(); err != nil {
+        return err
+    }
 
-    return self.RenameUnit.Save()
+    removeLink(self.Name)
+
+    readConfig(self)
+    updateParentNetwork(self)
+
+    return nil
 }
 
 func (self *NetDev) ResetName() error {
@@ -113,12 +120,45 @@ func (self *NetDev) ResetName() error {
     }
 
     self.RenameUnit.File.Section("NetDev").DeleteKey("Name")
-
     if self.RenameUnit.IsEmpty() {
-        return self.RenameUnit.Delete()
+        if err := self.RenameUnit.Delete(); err != nil {
+            return err
+        }
+    } else if err := self.RenameUnit.Save(); err != nil {
+        return err
     }
 
-    return self.RenameUnit.Save()
+    removeLink(self.Name)
+
+    readConfig(self)
+    updateParentNetwork(self)
+
+    return nil
+}
+
+func removeLink(name string) error {
+    cmd := exec.Command("ip", "link", "show", name)
+    if err := cmd.Run(); err != nil {
+        return nil
+    }
+
+    cmd = exec.Command("ip", "link", "del", name)
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("unable to delete link %s", name)
+    }
+
+    return nil
+}
+
+func updateParentNetwork(netdev *NetDev) {
+    switch netdev.Status {
+    case LinkDisabled:
+        netdev.ParentDropin.Delete()
+    case LinkEnabled:
+        netdev.ParentDropin.File.NewSection("Network")
+        netdev.ParentDropin.File.Section("Network").NewKey("VLAN", netdev.Name)
+        netdev.ParentDropin.Save()
+    }
 }
 
 func parseUnitName(netdev *NetDev) (string, error) {
@@ -138,6 +178,11 @@ func parseUnitName(netdev *NetDev) (string, error) {
     intfName := networkParts[0]
 
     return intfName, nil
+}
+
+func readConfig(netdev *NetDev) {
+    applyConfig(netdev, netdev.Unit)
+    applyDropinConfigs(netdev)
 }
 
 func applyConfig(netdev *NetDev, unit *Unit) {
@@ -173,7 +218,7 @@ func applyDropinConfigs(netdev *NetDev) {
 
         origName := netdev.Name
         applyConfig(netdev, dropinUnit)
-        if origName != "" && netdev.Name != origName {
+        if netdev.Name != origName {
             netdev.RenameUnit = dropinUnit
         }
     }
@@ -215,9 +260,7 @@ func NewNetDev(path string, linkType LinkType) (*NetDev, error) {
         }
     }
 
-    applyConfig(&netdev, netdev.Unit)
-
-    applyDropinConfigs(&netdev)
+    readConfig(&netdev)
 
     return &netdev, nil
 }

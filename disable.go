@@ -1,37 +1,34 @@
 package main
 
 import (
-    "errors"
-    "fmt"
+	"fmt"
 
-    "github.com/haboustak/linkctl/internal/networkd"
+	"github.com/haboustak/linkctl/internal/networkd"
 )
 
-var cmdDisable = &Command {
-    Name:   "disable",
-    Run:    disable,
+var cmdDisable = &Command{
+	Name: "disable",
+	Run:  disable,
 }
 
 func init() {
 }
 
 func disable(self *Command) error {
-    args := self.Flags.Args()
+	args := self.Flags.Args()
 
-    if len(args) != 1 {
-        fmt.Println("No unit name")
-        return nil
-    }
+	if len(args) != 1 {
+		return fmt.Errorf("You must provide the name of the unit to disable")
+	}
 
-    netdev, ok := networkd.GetNetDev(args[0])
-    if !ok {
-        return errors.New("No netdev with that name")
-    }
+	netdev, ok := networkd.GetNetDev(args[0])
+	if !ok {
+		return fmt.Errorf("No netdev with the name %s", args[0])
+	}
 
-    err := netdev.Disable()
-    if err != nil {
-        return err
-    }
+	if err := netdev.Disable(); err != nil {
+		return err
+	}
 
-    return networkd.Restart()
+	return networkd.Restart()
 }

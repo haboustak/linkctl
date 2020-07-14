@@ -1,6 +1,8 @@
 package networkd
 
 import (
+    "fmt"
+    "io/ioutil"
     "os"
     "path/filepath"
 
@@ -15,10 +17,15 @@ type Unit struct {
 
 func (self *Unit) Delete() error {
     err := os.Remove(self.Path)
-    if !os.IsNotExist(err) {
+    if err != nil && !os.IsNotExist(err) {
+        fmt.Println(err)
         return err
     }
 
+    unitDir := filepath.Dir(self.Path)
+    if dirIsEmpty(unitDir) {
+        os.Remove(unitDir)
+    }
     return nil
 }
 
@@ -63,6 +70,13 @@ func SectionEmpty(section *ini.Section) bool {
     return true
 }
 
+func dirIsEmpty(path string) bool {
+	entries, err := ioutil.ReadDir(path)
+	if err != nil {
+		return false
+	}
+	return len(entries) == 0
+}
 func NewUnit(path string) (*Unit, error) {
     unit := Unit {
         Path: path,
