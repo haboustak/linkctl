@@ -9,6 +9,17 @@ import (
 var cmdDisable = &Command{
 	Name: "disable",
 	Run:  disable,
+    Usage: `Usage:
+    linkctl [-h] disable LINK
+
+Disable a netdev link
+
+Arguments:
+    LINK    name of the link to disable
+
+Options:
+    -h      show this help
+`,
 }
 
 func init() {

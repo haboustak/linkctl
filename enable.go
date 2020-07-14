@@ -9,6 +9,17 @@ import (
 var cmdEnable = &Command{
 	Name: "enable",
 	Run:  enable,
+    Usage: `Usage:
+    linkctl [-h] enable LINK
+
+Enable a netdev link
+
+Arguments:
+    LINK    name of the link to enable
+
+Options:
+    -h      show this help
+`,
 }
 
 func enable(self *Command) error {

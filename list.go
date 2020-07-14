@@ -15,6 +15,15 @@ var (
 var cmdList = &Command{
 	Name: "list",
 	Run:  list,
+    Usage: `Usage:
+    linkctl [-h] list [-a]
+
+Show systemd-networkd netdev links
+
+Options:
+    -a      show all links
+    -h      show this help
+`,
 }
 
 func init() {

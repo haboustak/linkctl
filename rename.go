@@ -11,6 +11,19 @@ import (
 var cmdRename = &Command{
 	Name: "rename",
 	Run:  rename,
+    Usage: `Usage:
+    linkctl [-h] rename LINK [NEWNAME]
+
+Enable a netdev link
+
+Arguments:
+    LINK        name of the link to rename
+    NEWNAME     new name for the link. If not specified the link is
+                reset to its default name.
+
+Options:
+    -h          show this help
+`,
 }
 
 func clearName(netdev *networkd.NetDev) error {
