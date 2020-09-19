@@ -9,6 +9,8 @@ import (
 
 var IsATTY bool
 
+const Version = "1.0.0"
+
 type Command struct {
 	Name  string
 	Run   func(cmd *Command) error
@@ -31,10 +33,12 @@ func init() {
 
 func main() {
 	var showHelp bool
+	var version bool
 
 	flag.BoolVar(&showHelp, "h", false, "show help")
 	flag.BoolVar(&showAll, "a", false, "show all links")
 	flag.BoolVar(&quietMode, "q", false, "only print link names")
+	flag.BoolVar(&version, "v", false, "print version information")
 
 	flag.Usage = func() {
 		printUsage(defaultUsage)
@@ -44,6 +48,8 @@ func main() {
 
 	if showHelp && len(args) == 0 {
 		printUsage(defaultUsage)
+	} else if version {
+		printVersion()
 	}
 
 	command := "list"
@@ -83,12 +89,13 @@ func main() {
 var defaultUsage = `linkctl is a tool for managing systemd-networkd virtual interfaces
 
 Usage:
-    linkctl [-h] [-a] [-q] COMMAND [arguments]
+    linkctl [-h] [-a] [-q] [-v] COMMAND [arguments]
 
 Options:
    -a           show all links
    -h           show this help
    -q           only print link names
+   -v           print version information
 
 Commands:
     list        list netdev links
@@ -100,4 +107,9 @@ Commands:
 func printUsage(usage string) {
 	fmt.Fprintf(os.Stderr, usage)
 	os.Exit(1)
+}
+
+func printVersion() {
+	fmt.Fprintf(os.Stdout, "linkctl %s\n", Version)
+	os.Exit(0)
 }
