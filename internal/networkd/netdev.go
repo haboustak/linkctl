@@ -11,6 +11,7 @@ import (
 type NetDev struct {
     Name        string
     Kind        string
+    Description string
     Unit        *Unit
     Status      LinkStatus
     RenameUnit  *Unit
@@ -171,7 +172,7 @@ func parseUnitName(netdev *NetDev) (string, error) {
 func applyConfig(netdev *NetDev, unit *Unit) {
     section := unit.File.Section("NetDev")
 
-    var keys = []string{"Name", "Kind"}
+    var keys = []string{"Name", "Kind", "Description"}
 
     for _, key := range keys {
         if section.HasKey(key) {
@@ -182,6 +183,8 @@ func applyConfig(netdev *NetDev, unit *Unit) {
                 netdev.Interface = NewInterface(netdev.Name)
             case "Kind":
                 netdev.Kind = value
+            case "Description":
+                netdev.Description = value
             }
         }
     }

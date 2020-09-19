@@ -34,6 +34,10 @@ func init() {
 	cmdList.Flags.BoolVar(&quietMode, "q", false, "only print link names")
 }
 
+func ansiPad(status string) string {
+	return fmt.Sprintf("%s\x1B[%16dm", status, 0)
+}
+
 func ansiColorStatus(status networkd.LinkStatus) string {
 	if !IsATTY {
 		return string(status)
@@ -41,11 +45,11 @@ func ansiColorStatus(status networkd.LinkStatus) string {
 
 	switch status {
 	case networkd.LinkEnabled:
-		return fmt.Sprintf("\x1B[0;1;32m%s\x1B[0m", status)
+		return fmt.Sprintf("\x1B[0;1;32m%s\x1B[0000000m", status)
 	case networkd.LinkUserDefined:
 		return fmt.Sprintf("\x1B[0;1;38;5;185m%s\x1B[0m", status)
 	default:
-		return string(status)
+        return ansiPad(string(status))
 	}
 }
 
@@ -55,9 +59,9 @@ func list(self *Command) error {
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 15, 3, 1, ' ', tabwriter.TabIndent)
+	w := tabwriter.NewWriter(os.Stdout, 16, 3, 4, ' ', tabwriter.TabIndent)
 	if !quietMode {
-		fmt.Fprintln(w, "NAME\tTYPE\tSTATUS")
+		fmt.Fprintf(w, "NAME\tTYPE\t%s\tDESCRIPTION\t\n", ansiPad("STATUS"))
 	}
 
 	for _, link := range links {
@@ -71,8 +75,9 @@ func printLink(w io.Writer, link *networkd.NetDev) {
 	if quietMode {
 		fmt.Fprintln(w, link.Name)
 	} else {
-		fmt.Fprintf(w, "%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n",
 			link.Name, link.Kind,
-			ansiColorStatus(link.Status))
+			ansiColorStatus(link.Status),
+			link.Description)
 	}
 }
