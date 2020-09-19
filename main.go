@@ -33,6 +33,12 @@ func main() {
 	var showHelp bool
 
 	flag.BoolVar(&showHelp, "h", false, "show help")
+	flag.BoolVar(&showAll, "a", false, "show all links")
+	flag.BoolVar(&quietMode, "q", false, "only print link names")
+
+	flag.Usage = func() {
+		printUsage(defaultUsage)
+	}
 	flag.Parse()
 	args := flag.Args()
 
@@ -46,6 +52,7 @@ func main() {
 		args = args[1:]
 	}
 
+	cmdFound := false
 	for _, cmd := range commands {
 		if cmd.Name != command {
 			continue
@@ -63,13 +70,25 @@ func main() {
 		if err != nil {
 			fmt.Println(err)
 		}
+		cmdFound = true
+		break
+	}
+
+	if !cmdFound {
+		fmt.Fprintf(os.Stderr, "Unknown operation \"%s\", try \"linkctl -h\"\n", command)
+		os.Exit(1)
 	}
 }
 
 var defaultUsage = `linkctl is a tool for managing systemd-networkd virtual interfaces
 
 Usage:
-    linkctl [-h] COMMAND [arguments]
+    linkctl [-h] [-a] [-q] COMMAND [arguments]
+
+Options:
+   -a           show all links
+   -h           show this help
+   -q           only print link names
 
 Commands:
     list        list netdev links
