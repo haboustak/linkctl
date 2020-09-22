@@ -41,5 +41,9 @@ func disable(self *Command) error {
 		return err
 	}
 
-	return networkd.Restart()
+	if err := networkd.Restart(); err != nil {
+		return fmt.Errorf("Failed to restart systemd-networkd: %s", err)
+	}
+
+	return nil
 }
