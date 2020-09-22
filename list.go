@@ -49,7 +49,7 @@ func ansiColorStatus(status networkd.LinkStatus) string {
 	case networkd.LinkUserDefined:
 		return fmt.Sprintf("\x1B[0;1;38;5;185m%s\x1B[0m", status)
 	default:
-        return ansiPad(string(status))
+		return ansiPad(string(status))
 	}
 }
 
