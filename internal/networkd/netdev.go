@@ -29,8 +29,8 @@ const (
 )
 
 const (
-    EnabledLink LinkType = "/etc/systemd/network/*.netdev"
-    AvailableLink LinkType = "/etc/systemd/network/netdev.available/*.netdev"
+    EnabledLink LinkType = "enabled"
+    AvailableLink LinkType = "available"
 )
 
 var netdevs map[string]*NetDev
@@ -252,6 +252,10 @@ func NewNetDev(path string, linkType LinkType) (*NetDev, error) {
 
 func loadNetDevs() {
     linkTypes := [2]LinkType{EnabledLink, AvailableLink}
+    configPaths := map[LinkType][]string {
+        EnabledLink: []string {"/etc/systemd/network/*.netdev"},
+        AvailableLink: []string {"/etc/linkctl/user/*.netdev", "/etc/linkctl/system/*.netdev", "/etc/systemd/network/netdev.available/*.netdev"},
+    }
 
     if netdevs != nil {
         return
@@ -259,19 +263,21 @@ func loadNetDevs() {
 
     netdevs = make(map[string]*NetDev)
     for _, linkType := range linkTypes {
-        files, err := filepath.Glob(string(linkType))
-        if err != nil {
-            panic(err)
-        }
-
-        for _, file := range files {
-            netdev, err := NewNetDev(file, linkType)
+        for _, path := range configPaths[linkType] {
+            files, err := filepath.Glob(path)
             if err != nil {
-                continue
+                panic(err)
             }
-            _, exist := netdevs[netdev.Name]
-            if !exist {
-                netdevs[netdev.Name] = netdev
+
+            for _, file := range files {
+                netdev, err := NewNetDev(file, linkType)
+                if err != nil {
+                    continue
+                }
+                _, exist := netdevs[netdev.Name]
+                if !exist {
+                    netdevs[netdev.Name] = netdev
+                }
             }
         }
     }
