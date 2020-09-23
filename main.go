@@ -8,8 +8,7 @@ import (
 )
 
 var IsATTY bool
-
-const Version = "1.0.0"
+var Version = "1.0.0-dev"
 
 type Command struct {
 	Name  string
