@@ -11,27 +11,27 @@ import (
 
 var (
 	showAll   bool
-	quietMode bool
+	terseMode bool
 )
 
 var cmdList = &Command{
 	Name: "list",
 	Run:  list,
 	Usage: `Usage:
-    linkctl [-h] list [-a] [-q]
+    linkctl [-h] list [-a] [-t]
 
 Show systemd-networkd netdev links
 
 Options:
     -a      show all links
     -h      show this help
-    -q      only print link names
+    -t      only print link names
 `,
 }
 
 func init() {
 	cmdList.Flags.BoolVar(&showAll, "a", false, "show all links")
-	cmdList.Flags.BoolVar(&quietMode, "q", false, "only print link names")
+	cmdList.Flags.BoolVar(&terseMode, "t", false, "only print link names")
 }
 
 func ansiPad(status string) string {
@@ -60,7 +60,7 @@ func list(self *Command) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 16, 3, 4, ' ', tabwriter.TabIndent)
-	if !quietMode {
+	if !terseMode {
 		fmt.Fprintf(w, "NAME\tTYPE\t%s\tDESCRIPTION\t\n", ansiPad("STATUS"))
 	}
 
@@ -72,7 +72,7 @@ func list(self *Command) error {
 	return nil
 }
 func printLink(w io.Writer, link *networkd.NetDev) {
-	if quietMode {
+	if terseMode {
 		fmt.Fprintln(w, link.Name)
 	} else {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n",
