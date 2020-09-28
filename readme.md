@@ -2,15 +2,21 @@
 A utility for managing systemd-networkd virtual interfaces.
 
 ```
-$ linkctl -h
+linkctl is a tool for managing systemd-networkd virtual interfaces
+
 Usage:
+    linkctl [-h] [-a] [-t] [-version] COMMAND [arguments]
 
-    linkctl <command> [arguments]
+Options:
+   -a           show all links
+   -h           show this help
+   -t           only print link names
+   -version     print version information
 
-The commands are:
+Commands:
     list        list netdev links
-    enable      enable a netdev link configuration
-    disable     disable a netdev link configuration
+    enable      enable a netdev link
+    disable     disable a netdev link
     rename      rename a netdev link
 ```
 
