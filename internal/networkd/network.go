@@ -58,17 +58,8 @@ func (self *Network) DropinForNetDev(netdev *NetDev) (*Unit, error) {
 			self.Interface.Name)
 	}
 
-	dropinPath := fmt.Sprintf(
-		"/etc/systemd/network/%s.d/%s.conf",
-		netdev.ParentNetwork.Unit.Name,
-		strings.TrimSuffix(netdev.Unit.Name, ".netdev"))
-
-	dropinUnit, err := NewUnit(dropinPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return dropinUnit, nil
+	dropinName := strings.TrimSuffix(netdev.Unit.Name, ".netdev")
+	return self.Unit.NewDropin(dropinName)
 }
 
 func getNetworkUnit(intf *Interface) (*Unit, error) {

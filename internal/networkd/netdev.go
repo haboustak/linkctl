@@ -9,14 +9,16 @@ import (
 )
 
 type NetDev struct {
-	Name          string
-	Kind          string
-	Description   string
-	Unit          *Unit
-	Status        LinkStatus
-	RenameUnit    *Unit
-	Interface     *Interface
-	ParentNetwork *Network
+	Name              string
+	Kind              string
+	Description       string
+	Unit              *Unit
+	Status            LinkStatus
+	RenameUnit        *Unit
+	RenameNetworkUnit *Unit
+	Interface         *Interface
+	Network           *Network
+	ParentNetwork     *Network
 }
 
 type LinkStatus string
@@ -83,21 +85,34 @@ func (self *NetDev) Disable() error {
 
 func (self *NetDev) Rename(newName string) error {
 	if self.RenameUnit == nil {
-		renameFile := fmt.Sprintf(
-			"/etc/systemd/network/%s.d/name.conf",
-			self.Unit.Name)
-		unit, err := NewUnit(renameFile)
+		unit, err := self.Unit.NewDropin("name")
 		if err != nil {
-			return fmt.Errorf("Failed to load unit %s: %w", renameFile, err)
+			return fmt.Errorf("Failed to create dropin for unit %s: %w", self.Unit.Path, err)
 		}
 		self.RenameUnit = unit
 	}
 
-	self.RenameUnit.File.NewSection("NetDev")
-	self.RenameUnit.File.Section("NetDev").NewKey("Name", newName)
-	if err := self.RenameUnit.Save(); err != nil {
+	if self.Network != nil && self.Network.Unit != nil && self.RenameNetworkUnit == nil {
+		// We only need to extend the network config if it matches this netdev by name
+		if self.Network.Unit.ContainsValue("Match", "Name", self.Name) {
+			unit, err := self.Network.Unit.NewDropin("name")
+			if err != nil {
+				return fmt.Errorf("Failed to create dropin for unit %s: %w", self.Unit.Path, err)
+			}
+			self.RenameNetworkUnit = unit
+		}
+	}
+
+	if err := self.RenameUnit.Set("NetDev", "Name", newName); err != nil {
 		return fmt.Errorf("Unable to save dropin unit %s: %w",
 			self.RenameUnit.Path, err)
+	}
+
+	if self.RenameNetworkUnit != nil {
+		if err := self.RenameNetworkUnit.Replace("Match", "Name", self.Name, newName); err != nil {
+			return fmt.Errorf("Unable to save dropin unit %s: %w",
+				self.RenameUnit.Path, err)
+		}
 	}
 
 	self.Interface.Delete()
@@ -114,17 +129,16 @@ func (self *NetDev) Rename(newName string) error {
 }
 
 func (self *NetDev) ResetName() error {
-	if self.RenameUnit == nil {
-		return fmt.Errorf("The link %s has not been renamed", self.Name)
-	}
-
-	self.RenameUnit.File.Section("NetDev").DeleteKey("Name")
-	if self.RenameUnit.IsEmpty() {
-		if err := self.RenameUnit.Delete(); err != nil {
+	if self.RenameUnit != nil {
+		if err := self.RenameUnit.Remove("NetDev", "Name"); err != nil {
 			return err
 		}
-	} else if err := self.RenameUnit.Save(); err != nil {
-		return err
+	}
+
+	if self.RenameNetworkUnit != nil {
+		if err := self.RenameNetworkUnit.Exclude("Match", "Name", self.Name); err != nil {
+			return err
+		}
 	}
 
 	self.Interface.Delete()
@@ -141,35 +155,47 @@ func (self *NetDev) ResetName() error {
 }
 
 func (self *NetDev) Reload() error {
-	applyConfig(self, self.Unit)
+	if err := self.loadUnit(); err != nil {
+		return err
+	}
 
-	if err := applyDropinConfigs(self); err != nil {
+	if err := self.findNetworkDropin(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func parseUnitName(netdev *NetDev) (string, error) {
-	nameParts := strings.SplitN(netdev.Unit.Name, "-", 2)
+func (self *NetDev) parseUnitName() (string, error) {
+	nameParts := strings.SplitN(self.Unit.Name, "-", 2)
 	if len(nameParts) != 2 {
 		return "", fmt.Errorf(
 			"link %s does not have a conforming unit name (%s)",
-			netdev.Name, netdev.Unit.Name)
+			self.Name, self.Unit.Name)
 	}
 
 	networkParts := strings.SplitN(nameParts[1], ".", 2)
 	if len(networkParts) != 2 {
 		return "", fmt.Errorf(
 			"link %s does not have a conforming unit name (%s)",
-			netdev.Name, netdev.Unit.Name)
+			self.Name, self.Unit.Name)
 	}
 	intfName := networkParts[0]
 
 	return intfName, nil
 }
 
-func applyConfig(netdev *NetDev, unit *Unit) {
+func (self *NetDev) loadUnit() error {
+	self.applyConfig(self.Unit)
+
+	if err := self.applyDropinConfigs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *NetDev) applyConfig(unit *Unit) {
 	section := unit.File.Section("NetDev")
 
 	var keys = []string{"Name", "Kind", "Description"}
@@ -179,37 +205,46 @@ func applyConfig(netdev *NetDev, unit *Unit) {
 			value := section.Key(key).String()
 			switch key {
 			case "Name":
-				netdev.Name = value
-				netdev.Interface = NewInterface(netdev.Name)
+				self.Name = value
+				self.Interface = NewInterface(self.Name)
 			case "Kind":
-				netdev.Kind = value
+				self.Kind = value
 			case "Description":
-				netdev.Description = value
+				self.Description = value
 			}
 		}
 	}
 }
 
-func applyDropinConfigs(netdev *NetDev) error {
-	dropinPath := fmt.Sprintf("/etc/systemd/network/%s.d/*.conf", netdev.Unit.Name)
-	dropins, err := filepath.Glob(dropinPath)
-	if err != nil {
-		return fmt.Errorf("Failed to list units at %s: %w", dropinPath, err)
+func (self *NetDev) applyDropinConfigs() error {
+	if self.Unit == nil {
+		return nil
 	}
 
-	for _, dropin := range dropins {
-		dropinUnit, err := NewUnit(dropin)
-		if err != nil {
-			// TODO log.warn
-			continue
+	for unit := range self.Unit.DropinUnits() {
+		origName := self.Name
+		self.applyConfig(unit)
+
+		if self.Name != origName {
+			self.RenameUnit = unit
 		}
+	}
 
-		origName := netdev.Name
-		// TODO log.warn
-		applyConfig(netdev, dropinUnit)
+	return nil
+}
 
-		if netdev.Name != origName {
-			netdev.RenameUnit = dropinUnit
+func (self *NetDev) findNetworkDropin() error {
+	if self.Network == nil || self.Network.Unit == nil {
+		return nil
+	}
+
+	for unit := range self.Network.Unit.DropinUnits() {
+		match := unit.Get("Match", "Name")
+		for _, name := range strings.Split(match, " ") {
+			if name == self.Name {
+				self.RenameNetworkUnit = unit
+				break
+			}
 		}
 	}
 
@@ -225,9 +260,17 @@ func NewNetDev(path string, linkType LinkType) (*NetDev, error) {
 	}
 	netdev.Unit = unit
 
-	// TODO Log parsing errors
-	intfName, _ := parseUnitName(&netdev)
+	if err := netdev.loadUnit(); err != nil {
+		return nil, err
+	}
+
+	intfName, _ := netdev.parseUnitName()
+	netdev.Network = NetworkFromIntf(netdev.Name)
 	netdev.ParentNetwork = NetworkFromIntf(intfName)
+
+	if err := netdev.findNetworkDropin(); err != nil {
+		return nil, err
+	}
 
 	netdev.Status = LinkDisabled
 	if linkType == EnabledLink {
@@ -241,10 +284,6 @@ func NewNetDev(path string, linkType LinkType) (*NetDev, error) {
 		} else {
 			netdev.Status = LinkUserDefined
 		}
-	}
-
-	if err := netdev.Reload(); err != nil {
-		return nil, err
 	}
 
 	return &netdev, nil
