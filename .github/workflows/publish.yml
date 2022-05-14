@@ -28,7 +28,7 @@ jobs:
 
       - name: Build
         run: |
-            go build -v -ldflags="-X 'main.Version=v${{ steps.version.outputs.tag }}'" .
+            go build -v -ldflags="-X 'main.Version=${{ steps.version.outputs.tag }}'" .
             tar zcvf "linkctl-${{ steps.version.outputs.tag }}.tar.gz" linkctl
 
       - name: Create release
